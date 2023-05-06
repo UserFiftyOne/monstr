@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Encounters with Attitude"
+    />
+    <title>Encounters with Attitude</title>
+	<style>
+		body, p, div {
+			font-size: 1em;
+			font-family: sans-serif;
+			color: #333;
+		}
+		
+		p.weenie {
+			font-size:0.75em;
+			color:#999;
+		}
+		
+		fieldset {
+			border-radius: 0.2em;
+			border-style: solid;
+			padding: 1em;
+			max-width: 40%;
+		}
+		
+		legend {
+			font-size: 0.8em;
+		}
+		
+		label {
+			font-weight: bold;
+			display: inline-block;
+			min-width: 10em;
+		}
+		
+		form div {
+			padding: 0.1em;
+			margin: 0.1em 0;
+		}
+		
+		select {
+			width: 20%;
+		}
+		
+		div#msg {
+			border: 2px solid #99C;
+			border-radius: 0.25em;
+			background-color: #ddf;
+			color: #005;
+			padding: 0.75em;
+			display: none; 
+			max-width: 40em;
+		}
+		
+		div.info {
+			border: none;
+			background-color: #66f;
+			padding: 0.5em;
+			font-size: 0.9em;
+			color: #fff;
+		}
+		
+		div.stat {
+			font-size: 0.9em;
+		}
+		
+		span.label {
+			font-weight: bold;
+			display: inline-block;
+			width: 7em;
+		}
+	
+	</style>
+	<script src="5eMonsters.js"></script>
+	<script src="monster_vars.js"></script>
+	<script>
+		function randomInt(min, max) {
+		  return Math.floor(Math.random() * (max - min + 1)) + min;
+		}
+	
+		function generate_encounter() {
+			/* get submitted values */
+			diff_rating = getFormFieldValue('difficulty','name');
+			party_size  = getFormFieldValue('party_size');
+			party_level = getFormFieldValue('party_level');
+			monster_party_size  = getFormFieldValue('monster_party_size');
+			
+			/* if any are omitted, randomize them */
+			if (party_size === "") { party_size = randomInt(1,10); }
+			if (party_level === "") { party_level = randomInt(1,5); }
+			if (monster_party_size === "") { monster_party_size = randomInt(1,10); }
+			if (diff_rating === "") { diff_rating = randomInt(2,4)/2; }
+			
+			/* just a bit of text for later */
+			if (monster_party_size === 1) {monster_phrase = 'There is 1 monster';}
+			else {monster_phrase='There are ' + monster_party_size + ' monsters';}
+			
+			if (diff_rating === "2") {diff_rating_desc = 'Easy Peasy';}
+			else if (diff_rating === "1.5") {diff_rating_desc = 'Moderately Challenging';}
+			else {diff_rating_desc = 'Eep!';}
+			
+			/* use the Lazy DM lethality calculation: 1/4 total party levels or higher could be lethal 
+			   easy encounters divide by 8; moderate divide by 6; potentially lethal divide by 4 */
+			total_levels = party_size * party_level;
+			total_cr = Math.floor(total_levels/(4*diff_rating));
+			avg_cr_raw = total_cr/monster_party_size;
+			
+			/* based on the number of monsters, come up with an average CR per monster */
+			if (avg_cr_raw <= 0.25) { avg_cr = '1/4'; }
+			else if (avg_cr_raw <= 0.5) { avg_cr = '1/2'; }
+			else if (avg_cr_raw <= 1.0) { avg_cr = '1'; }
+			else { avg_cr = String(Math.floor(avg_cr_raw)); }
+			
+			/* select a list of candidate monsters by CR */
+			candidate_monsters = monster_catalog.filter(function(el) { return el.CR === avg_cr; });
+			picked_index = randomInt(0,candidate_monsters.length-1);
+			monstr = candidate_monsters[randomInt(0,picked_index)]; /* they're all the same for now */
+
+			
+			if (monstr===undefined) {
+				console.log(candidate_monsters)
+			}
+			
+			/* how smart are these little buggers? */
+			/* Temporary solution until we add Intelligence to the monster catalog */
+			if ("Intelligence" in monstr) { /* do nothing */ }
+			else {
+				
+				switch (monstr["Type"].toLowerCase()) {
+					case "plant":
+					case "ooze":
+						monstr["Intelligence"] = [1,"Plantlike"];
+						break;
+					case "beast":
+					case "monstrosity":
+						monstr["Intelligence"] = [2,"Bestial"];
+						break;
+					case "aberration":
+					case "construct":
+						monstr["Intelligence"] = [3,"Low - simple orders"];
+						break;
+					case "elemental":
+					case "fiend":
+					case "giant":
+					case "fey":
+						monstr["Intelligence"] = [4,"Average, like a human"];
+						break;
+					case "dragon":
+					case "celestial":
+						monstr["Intelligence"] = [5,"Advanced, wikked smaht"];
+						break;
+					default:
+						var tmp_int = randomInt(3,5);
+						if (tmp_int===3) {monstr["Intelligence"]  = [3,"Low - simple orders"]}
+						else if (tmp_int===4)  {monstr["Intelligence"]  = [3,"Average, like a human"]} 
+						else  {monstr["Intelligence"]  = [3,"Advanced, wikked smaht"]} 
+						break;
+				}
+			}
+			
+			/* who is in this party? */
+			/*
+				if there is only one, it's a singleton
+				if there are two, then there are one or two types - 2 of one or one of each
+				if there are three or more, then there are 1-3 types
+			*/
+			if (monstr["Type"].toLowerCase() === "plant") {
+				type_list = monster_party_comps[0];
+			} else if (monstr["Type"].toLowerCase() === "beast") {
+				type_list = monster_party_comps[1];
+			} else {
+				type_list = monster_party_comps[2];
+			}
+			
+			monster_types = randomInt(1, Math.min(monster_party_size, 3));
+			
+			monster_party = getMonsterPartyComposition(type_list, monster_party_size, monster_types);
+			
+			monster_party_composition = "";
+			monster_party_length = Object.keys(monster_party).length;
+			for (var ii=0; ii < monster_party_length; ii++) {
+				guy = Object.keys(monster_party)[ii];
+				monster_party_composition += monster_party[guy] + " " + pluralize(guy, monster_party[guy]);
+				
+				if (monster_party_length === 2 && ii === 0) {
+					monster_party_composition += " and "; 
+				} else if (monster_party_length > 2 && ii === monster_party_length-2) {
+					monster_party_composition += ", and ";
+				} else if (monster_party_length > 2 && ii !== monster_party_length-1) {
+					monster_party_composition += ", ";
+				}
+			}
+			
+			/* how aggressive are they? */
+			monstr["Aggression"] = randomInt(0,2)
+			monstr["Loyalty"] = randomInt(0,6)
+			
+			formatted_msg = `<div class="info">Generating encounter information for a <span class="that-seems-important">party of ${party_size}</span> <span class="that-seems-important">having average level ${party_level}</span> at difficulty <span class="that-seems-important">${diff_rating_desc}</span>.<br />
+		The total CR will be ${total_cr}. ${monster_phrase}, so the average CR is ${avg_cr}</div>
+	
+		<div><h3>You shall face ${monster_party_size} ${pluralize(monstr["Creature"], monster_party_size)}!</h3>
+			<div class="stat"><span class="label">Type:</span> ${monstr["Type"]}  </div> 
+			<div class="stat"><span class="label">Size:</span> ${monstr["Size"]} </div> 
+			<div class="stat"><span class="label">AC:</span> ${monstr["AC"]} </div> 
+			<div class="stat"><span class="label">HP:</span> ${monstr["hp"]} </div> 
+			<div class="stat"><span class="label">Alignment:</span> ${monstr["Alignment"]} </div> 
+			<div class="stat"><span class="label">Source:</span> ${monstr["Source"]}</div>
+			
+			<p>For the purposes of this encounter, these monsters will be considered:</p>
+			<div class="stat"><span class="label">Intelligence:</span> ${getMonsterValue(monstr, "Intelligence")}</div>
+			<p>${freakingPluralForm("This", monster_party_size)} ${pluralize(monstr["Creature"], monster_party_size)} consists of ${monster_party_composition}.
+			${freakingPluralForm("It is",monster_party_size)} ${(monstr["Intelligence"][0]<=2) ? getMonsterVar("monsters_out_doing_unint")  :getMonsterVar("monsters_out_doing_int")}, and if faced with enemies, ${freakingPluralForm("its", monster_party_size)} goal is to  
+			${getMonsterVar("monster_goals")}. This particular ${freakingPluralForm("monster", monster_party_size)} is ${monster_aggressiveness[monstr["Aggression"]]} and will fight ${getMonsterVar("monster_fight_condition", monstr["Aggression"])}. If ${freakingPluralForm("it", monster_party_size)} ${freakingPluralForm("gets", monster_party_size)} into a fight, ${freakingPluralForm("it", monster_party_size)} will ${getMonsterVar("monster_tactic", monstr["Aggression"])} and tend to fixate on the party member who ${getMonsterVar("monster_fixation")}. Check for morale if ${getMonsterVar("monster_morale_check_neg")}.  However, the phrase that best describes ${freakingPluralForm("this", monster_party_size)} ${pluralize(monstr["Creature"], monster_party_size)}'s commitment is "${monster_loyalty[monstr["Loyalty"]]}," and may flee if ${getMonsterVar("monster_flight_condition")}.
+			
+			</p> 
+		</div>`
+			
+			document.getElementById('msg').innerHTML = formatted_msg;
+			
+			document.getElementById('msg').style.display = 'block';
+			
+			
+			return false;
+		}
+		
+		function getFormFieldValue(val, search_type="id") {
+			if (search_type === "id") {
+				element = document.getElementById(val);
+			} else { 
+				els = document.getElementsByName(val);
+				for (var i=0; i < els.length; i++) {
+					if (els[i].checked) {
+						return els[i].value;
+					}
+				}
+			} 
+			if (element) {
+				return element.value;
+			} else {
+				return '';
+			}
+		}
+		
+		function pluralize(in_name, in_count) {
+			if (in_count === 1) {
+				return in_name;
+			}
+			/* just some basic pluralization rules; not putting in all the exceptions at this point. */
+			if (['s', 'x', 'z'].includes(in_name.slice(-1).toLowerCase()) ||  ['sh', 'ch', 'ss'].includes(in_name.slice(-2).toLowerCase())) {
+				return in_name + 'es';
+			} else if (in_name.slice(-1).toLowerCase() === 'y' && !['a','e','i','o','u'].includes(in_name.slice(-2,-1).toLowerCase())) {
+				return in_name.slice(0,-1) + 'ies';
+			} else if (in_name.slice(-1).toLowerCase() === 'y' && ['a','e','i','o','u'].includes(in_name.slice(-2,-1).toLowerCase())) {
+				return in_name + 's';
+			} else if (in_name.slice(-1).toLowerCase() === '0') {
+				return in_name + 'es';
+			} else {
+				return in_name + 's';
+			}
+		}
+		
+		function freakingPluralForm(instr, num) {
+			var pos = (num==1) ? 0 : 1;
+			var firstLetter = instr.charAt(0)
+			
+			var phrases = {
+				"it is" : ["it is", "they are"],
+				"its"	: ["its", "their"],
+				"monster": ["monster", "party"],
+				"this"	: ["this","these"],
+				"it"	: ["it","they"],
+				"gets"	: ["gets","get"],
+				"is"	: ["is","are"]
+				/* Add more phrases */
+			}
+			/* uppercase if it came in that way */			
+			if (instr.toLowerCase() in phrases) {
+				if (firstLetter === firstLetter.toUpperCase()) {
+					return phrases[instr.toLowerCase()][pos].charAt(0).toUpperCase() + phrases[instr.toLowerCase()][pos].slice(1);
+				} else {
+					return phrases[instr.toLowerCase()][pos];
+				}
+			} else {
+				return instr;
+			}
+		}
+		
+		function getMonsterValue(monster, key) {
+			if (key in monster) {
+				return monster[key][1];
+			} else {
+				return null;
+			}
+		}
+		
+		function getMonsterVar(var_name, modifier=0) {
+			cases = eval(var_name+".length");
+			case_sel = Math.max(0, randomInt(0, cases-1) - modifier);
+			
+			return eval(var_name+"["+case_sel+"].toLowerCase()")
+		}
+
+		
+		function getMonsterPartyComposition(tl, mps, mt) {
+			/* picks a monster part from a type list, based on number of monster types and monster party size */
+			mpc = {};
+			ts  = [];
+			
+			console.log(tl, mps, mt);
+			
+			if (tl.length < mt || mt < 1 || mt > 3 || mps < mt || mps < 1 ) { return mpc } // get out fast for bad params
+			
+			//set the sizes per type
+			if (mt === 1 || mps === 1) {
+				ts[0] = mps;
+			} else if (mt === 2) {
+				ts[0] = randomInt(1, mps-1);
+				ts[1] = mps - ts[0]; 
+			} else {
+				ts[0] = randomInt(1, mps-2);
+				ts[1] = randomInt(ts[0]+1, mps-1) - ts[0];
+				ts[2] = mps - ts[0] - ts[1];
+			}
+			
+			// pick the type(s)
+			for (var i=0; i < mt; i++) {
+				pick = randomInt(0, tl.length-1);
+				mpc[tl[pick]] = ts[i];
+				tl.splice(pick, 1);
+			}
+			console.log(mpc);
+			return mpc;
+		}
+	</script>
+  </head>
+  <body>
+  	<h1>Encounter Flavor</h1>
+	<p class="weenie">v0.0.0.0.3</P>
+  	<p>Instructions: You can just submit the form to get a fully randomized encounter. Or, you can specify some parameters first, and the encounter will be constrained around your preferences</p>
+	<form id="encounter-form" name="encounter-form">
+  	<div>
+		<fieldset>
+			<legend>Difficulty Level</legend>
+				<div><input type="radio" id="easy_peasy" name="difficulty" value="2">
+				<label for="easy_peasy">Easy Peasy</label></div>
+				<div><input type="radio" id="modestly_challenging" name="difficulty" value="1.5">
+				<label for="modestly_challenging">Modestly Challenging</label></div>
+				<div><input type="radio" id="eep" name="difficulty" value="1">
+				<label for="eep">Eep!</label></div>
+				<div><input type="radio" id="rst" name="difficulty" value="" checked="checked">
+				<label for="rst">Surprise Me</label></div>
+		</fieldset>
+		<div><label for="party_size">Party Size: </label>
+		<select name="party_size" id="party_size" size="1">
+			<option value="">Randomize</option>
+			<option value="1">1</option>
+			<option value="2">2</option>
+			<option value="3">3</option>
+			<option value="4">4</option>
+			<option value="5">5</option>
+			<option value="6">6</option>
+			<option value="7">7</option>
+			<option value="8">8</option>
+			<option value="9">9</option>
+			<option value="10">10</option>
+		</select></div>
+		<div><label for="party_level">Average Party Level: </label>
+		<select name="party_level" id="party_level" size="1">
+			<option value="">Randomize</option>
+			<option value="1">1</option>
+			<option value="2">2</option>
+			<option value="3">3</option>
+			<option value="4">4</option>
+			<option value="5">5</option>
+			<option value="6">6</option>
+			<option value="7">7</option>
+			<option value="8">8</option>
+			<option value="9">9</option>
+			<option value="10">10</option>
+			<option value="11">11</option>
+			<option value="12">12</option>
+			<option value="13">13</option>
+			<option value="14">14</option>
+			<option value="15">15</option>
+			<option value="16">16</option>
+			<option value="17">17</option>
+			<option value="18">18</option>
+			<option value="19">19</option>
+			<option value="20">20</option>
+		</select></div>
+		<div><label for="monster_party_size">Monster Party Size: </label>
+		<select name="party_level" id="monster_party_size" size="1">
+			<option value="">Surprise me</option>
+			<option value="1">1</option>
+			<option value="2">2</option>
+			<option value="3">3</option>
+			<option value="4">4</option>
+			<option value="5">5</option>
+			<option value="6">6</option>
+			<option value="7">7</option>
+			<option value="8">8</option>
+			<option value="9">9</option>
+			<option value="10">10</option>
+		</select></div>
+		<div><input type="submit" value="Submit" onclick="javascript:return generate_encounter();"></div>
+	</div>
+	<div id="msg"></div>
+	
+	
+	</form>
+  </body>
+ </html>
