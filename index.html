@@ -73,6 +73,17 @@
 			display: inline-block;
 			width: 7em;
 		}
+		
+		div.monstrval {
+			width: 100%;
+			font-size: 0.9em;
+		}
+		
+		div.monstrval span.label {
+			width: 15em;
+		}
+		
+		
 	
 	</style>
 	<script src="5eMonsters.js"></script>
@@ -80,6 +91,69 @@
 	<script>
 		function randomInt(min, max) {
 		  return Math.floor(Math.random() * (max - min + 1)) + min;
+		}
+		
+		function roll(dice, rolltype="sum", rules="") {
+
+			const dierule = /^(\d+)d(\d+)/;
+			const modrule = /[+-]\d+/
+			const diematch = dice.trim().toLowerCase().match(dierule);
+			const modmatch = dice.trim().toLowerCase().match(modrule);
+			
+			if (!diematch) {
+				return undefined;
+			}
+			
+			numdice = parseInt(diematch[1], 10);
+			dietype = parseInt(diematch[2], 10);
+			
+			if (!modmatch) {
+				modifier = 0;
+			} else {
+				modifier = parseInt(modmatch[0], 10);
+			}
+			
+			//console.log(numdice, dietype, modifier);
+			
+			if (rolltype.toLowerCase() === "sum") {
+				diesum = 0;
+				for (j=0; j<numdice; j++) {
+					diesum += randomInt(1, dietype);
+				}
+			
+				return diesum + modifier;
+			}
+		}
+		
+		function weightedPull(fromList, dropoff) {
+			const dropoffs = /uniform|fast|slow/;
+			if (!dropoff.trim().toLowerCase().match(dropoffs)) {
+				return undefined;
+			}
+			
+			if (fromList.length===0) {
+				return undefined;
+			} else {
+				rng = fromList.length;
+			}
+			
+			if (dropoff.trim().toLowerCase()==='uniform') {
+				return fromList[randomInt(0, rng-1)];
+			} else if (dropoff.trim().toLowerCase()==='slow') {
+				parcels = (rng*(rng+1))/2;
+				const sel = randomInt(1, parcels);
+				accum = pos = 0;
+				for (var i=1; i<= rng; i++) {
+					accum += rng - (i - 1);
+					//console.log('Rand selection = ', sel, ', current accum: ', accum);
+					if (accum >= sel) {
+						pos = i-1;
+						break;
+					}
+				}
+				//console.log('Value selected: ', pos);
+				return pos;
+			}
 		}
 	
 		function generate_encounter() {
@@ -119,11 +193,6 @@
 			candidate_monsters = monster_catalog.filter(function(el) { return el.CR === avg_cr; });
 			picked_index = randomInt(0,candidate_monsters.length-1);
 			monstr = candidate_monsters[randomInt(0,picked_index)]; /* they're all the same for now */
-
-			
-			if (monstr===undefined) {
-				console.log(candidate_monsters)
-			}
 			
 			/* how smart are these little buggers? */
 			/* Temporary solution until we add Intelligence to the monster catalog */
@@ -203,20 +272,27 @@
 		The total CR will be ${total_cr}. ${monster_phrase}, so the average CR is ${avg_cr}</div>
 	
 		<div><h3>You shall face ${monster_party_size} ${pluralize(monstr["Creature"], monster_party_size)}!</h3>
-			<div class="stat"><span class="label">Type:</span> ${monstr["Type"]}  </div> 
-			<div class="stat"><span class="label">Size:</span> ${monstr["Size"]} </div> 
-			<div class="stat"><span class="label">AC:</span> ${monstr["AC"]} </div> 
-			<div class="stat"><span class="label">HP:</span> ${monstr["hp"]} </div> 
-			<div class="stat"><span class="label">Alignment:</span> ${monstr["Alignment"]} </div> 
-			<div class="stat"><span class="label">Source:</span> ${monstr["Source"]}</div>
+			<div class="monstrval"><span class="label">Type:</span> ${monstr["Type"]}  </div> 
+			<div class="monstrval"><span class="label">Size:</span> ${monstr["Size"]} </div> 
+			<div class="monstrval"><span class="label">AC:</span> ${monstr["AC"]} </div> 
+			<div class="monstrval"><span class="label">HP:</span> ${monstr["hp"]} </div> 
+			<div class="monstrval"><span class="label">Alignment:</span> ${monstr["Alignment"]} </div> 
+			<div class="monstrval"><span class="label">Source:</span> ${monstr["Source"]}</div>
 			
 			<p>For the purposes of this encounter, these monsters will be considered:</p>
-			<div class="stat"><span class="label">Intelligence:</span> ${getMonsterValue(monstr, "Intelligence")}</div>
-			<p>${freakingPluralForm("This", monster_party_size)} ${pluralize(monstr["Creature"], monster_party_size)} consists of ${monster_party_composition}.
-			${freakingPluralForm("It is",monster_party_size)} ${(monstr["Intelligence"][0]<=2) ? getMonsterVar("monsters_out_doing_unint")  :getMonsterVar("monsters_out_doing_int")}, and if faced with enemies, ${freakingPluralForm("its", monster_party_size)} goal is to  
-			${getMonsterVar("monster_goals")}. This particular ${freakingPluralForm("monster", monster_party_size)} is ${monster_aggressiveness[monstr["Aggression"]]} and will fight ${getMonsterVar("monster_fight_condition", monstr["Aggression"])}. If ${freakingPluralForm("it", monster_party_size)} ${freakingPluralForm("gets", monster_party_size)} into a fight, ${freakingPluralForm("it", monster_party_size)} will ${getMonsterVar("monster_tactic", monstr["Aggression"])} and tend to fixate on the party member who ${getMonsterVar("monster_fixation")}. Check for morale if ${getMonsterVar("monster_morale_check_neg")}.  However, the phrase that best describes ${freakingPluralForm("this", monster_party_size)} ${pluralize(monstr["Creature"], monster_party_size)}'s commitment is "${monster_loyalty[monstr["Loyalty"]]}," and may flee if ${getMonsterVar("monster_flight_condition")}.
-			
-			</p> 
+			<div class="monstrval"><span class="label">Intelligence:</span> ${getMonsterValue(monstr, "Intelligence")}</div>
+			<div class="monstrval"><span class="label">Monster Party Composition:</span> ${monster_party_composition}</div>
+			<div class="monstrval"><span class="label">Current Activity:</span> ${(monstr["Intelligence"][0]<=2) ? getMonsterVar("monsters_out_doing_unint")  :getMonsterVar("monsters_out_doing_int")}</div>
+			<div class="monstrval"><span class="label">Goal:</span> ${getMonsterVar("monster_goals")}</div>
+			<div class="monstrval"><span class="label">Aggressiveness:</span> ${monster_aggressiveness[monstr["Aggression"]]}</div>
+			<div class="monstrval"><span class="label">Fight condition:</span> ${getMonsterVar("monster_fight_condition", monstr["Aggression"])}</div>
+			<div class="monstrval"><span class="label">Fight Tactics:</span> ${getMonsterVar("monster_tactic", monstr["Aggression"])}</div>
+			<div class="monstrval"><span class="label">Fixation:</span> ${getMonsterVar("monster_fixation")}</div>
+			<div class="monstrval"><span class="label">Morale Check Condition:</span> ${getMonsterVar("monster_morale_check_neg")}</div>
+			<div class="monstrval"><span class="label">Committment Level:</span> ${monster_loyalty[monstr["Loyalty"]]}</div>
+			<div class="monstrval"><span class="label">Monster Flight Condition:</span> ${getMonsterVar("monster_flight_condition")}</div>
+			<div class="monstrval"><span class="label">Morale Boost Condition:</span> ${getMonsterVar("monster_morale_check_pos")}</div>
+
 		</div>`
 			
 			document.getElementById('msg').innerHTML = formatted_msg;
@@ -263,32 +339,6 @@
 			}
 		}
 		
-		function freakingPluralForm(instr, num) {
-			var pos = (num==1) ? 0 : 1;
-			var firstLetter = instr.charAt(0)
-			
-			var phrases = {
-				"it is" : ["it is", "they are"],
-				"its"	: ["its", "their"],
-				"monster": ["monster", "party"],
-				"this"	: ["this","these"],
-				"it"	: ["it","they"],
-				"gets"	: ["gets","get"],
-				"is"	: ["is","are"]
-				/* Add more phrases */
-			}
-			/* uppercase if it came in that way */			
-			if (instr.toLowerCase() in phrases) {
-				if (firstLetter === firstLetter.toUpperCase()) {
-					return phrases[instr.toLowerCase()][pos].charAt(0).toUpperCase() + phrases[instr.toLowerCase()][pos].slice(1);
-				} else {
-					return phrases[instr.toLowerCase()][pos];
-				}
-			} else {
-				return instr;
-			}
-		}
-		
 		function getMonsterValue(monster, key) {
 			if (key in monster) {
 				return monster[key][1];
@@ -310,7 +360,7 @@
 			mpc = {};
 			ts  = [];
 			
-			console.log(tl, mps, mt);
+			//console.log(tl, mps, mt);
 			
 			if (tl.length < mt || mt < 1 || mt > 3 || mps < mt || mps < 1 ) { return mpc } // get out fast for bad params
 			
@@ -332,14 +382,14 @@
 				mpc[tl[pick]] = ts[i];
 				tl.splice(pick, 1);
 			}
-			console.log(mpc);
+			//console.log(mpc);
 			return mpc;
 		}
 	</script>
   </head>
   <body>
   	<h1>Encounter Flavor</h1>
-	<p class="weenie">v0.0.0.0.5</P>
+	<p class="weenie">v0.0.0.0.6</P>
   	<p>Instructions: You can just submit the form to get a fully randomized encounter. Or, you can specify some parameters first, and the encounter will be constrained around your preferences</p>
 	<form id="encounter-form" name="encounter-form">
   	<div>
